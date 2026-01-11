@@ -10,6 +10,7 @@ import Cabanas from '@/components/sections/Cabanas';
 import Tarifas from '@/components/sections/Tarifas';
 import Reservas from '@/components/sections/Reservas';
 import Galeria from '@/components/sections/Galeria';
+import Videos from '@/components/sections/Videos';
 import Ubicacion from '@/components/sections/Ubicacion';
 import Faq from '@/components/sections/Faq';
 import Contacto from '@/components/sections/Contacto';
@@ -29,11 +30,11 @@ const LandingPage = () => {
       element.scrollIntoView({ behavior: 'smooth' });
     }
   };
-  
+
   const handleFeatureClick = (feature) => {
     if (feature === 'Google Maps') {
-        window.open('https://www.google.com/maps/dir//CABA%C3%91AS+EL%20HUERTO/data=!4m8!4m7!1m0!1m5!1m1!1s0x96178df483b1f4d7:0x6d468c645f52840e!2m2!1d-73.0327878!2d-41.1337674', '_blank');
-        return;
+      window.open('https://www.google.com/maps/dir//CABA%C3%91AS+EL%20HUERTO/data=!4m8!4m7!1m0!1m5!1m1!1s0x96178df483b1f4d7:0x6d468c645f52840e!2m2!1d-73.0327878!2d-41.1337674', '_blank');
+      return;
     }
     toast({
       title: "🚧 Función en desarrollo",
@@ -71,6 +72,7 @@ const LandingPage = () => {
           <Tarifas handleWhatsAppClick={handleWhatsAppClick} />
           <Reservas />
           <Galeria handleScrollTo={handleScrollTo} openLightbox={openLightbox} />
+          <Videos handleScrollTo={handleScrollTo} />
           <Ubicacion handleFeatureClick={handleFeatureClick} />
           <Faq handleWhatsAppClick={handleWhatsAppClick} />
           <Contacto handleWhatsAppClick={handleWhatsAppClick} />

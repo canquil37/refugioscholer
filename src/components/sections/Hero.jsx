@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Image, GalleryHorizontal, Phone } from 'lucide-react';
+import { Image, GalleryHorizontal, Phone, Video } from 'lucide-react';
 
 const Hero = ({ handleScrollTo, handleWhatsAppClick }) => {
   return (
@@ -32,7 +32,7 @@ const Hero = ({ handleScrollTo, handleWhatsAppClick }) => {
         >
           Refugio Scholer — Departamentos, cabaña y habitaciones en Frutillar Bajo
         </motion.h1>
-        
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -62,6 +62,14 @@ const Hero = ({ handleScrollTo, handleWhatsAppClick }) => {
             >
               <GalleryHorizontal className="h-5 w-5" />
               Ver fotos
+            </Button>
+            <Button
+              onClick={() => handleScrollTo('videos')}
+              variant="outline"
+              className="bg-white/90 border-2 border-white text-stone-800 font-bold hover:bg-white text-base md:text-lg px-6 py-4 rounded-full shadow-lg hover:shadow-white/30 hover:shadow-md transition-all duration-300 w-full max-w-xs md:max-w-none flex items-center justify-center gap-2"
+            >
+              <Video className="h-5 w-5" />
+              Ver videos
             </Button>
           </div>
         </motion.div>
