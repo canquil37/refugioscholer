@@ -8,162 +8,115 @@ import {
 import { MapPin, Camera, MessageCircle } from 'lucide-react';
 
 /**
- * Botón con anillo de partículas orbitando alrededor (Canvas).
- * - Ligero (solo Canvas)
- * - Reactivo al hover (más velocidad + brillo)
- * - Responde al tamaño real del botón (ResizeObserver)
+ * ParticleRingButton (versión PRO corregida)
+ * - Anillo perfectamente centrado (canvas inset-0)
+ * - Radio acoplado al tamaño real del botón
+ * - Pocas partículas (limpio, premium)
+ * - Hover = más energía controlada (velocidad + glow)
  */
 const ParticleRingButton = ({ onClick, label = 'RESERVAR POR WHATSAPP' }) => {
   const containerRef = React.useRef(null);
   const canvasRef = React.useRef(null);
 
-  const rafRef = React.useRef(null);
   const particlesRef = React.useRef([]);
-  const metricsRef = React.useRef({ w: 0, h: 0, dpr: 1 });
-
+  const rafRef = React.useRef(null);
   const hoverRef = React.useRef(false);
-  const lastTRef = React.useRef(performance.now());
 
   const rand = (a, b) => a + Math.random() * (b - a);
 
-  const initParticles = React.useCallback(() => {
-    const count = 28; // densidad (sube a 40 si lo quieres más "brutal")
-    const particles = [];
-    for (let i = 0; i < count; i++) {
-      particles.push({
-        a: rand(0, Math.PI * 2), // ángulo
-        va: rand(0.45, 0.95), // velocidad angular
-        rj: rand(-7, 7), // jitter radial
-        s: rand(1.2, 2.4), // tamaño
-        o: rand(0.35, 0.9), // opacidad
-        p: rand(0, 1), // fase twinkle
-      });
-    }
-    particlesRef.current = particles;
-  }, []);
-
-  const resizeCanvas = React.useCallback(() => {
-    const el = containerRef.current;
+  React.useEffect(() => {
     const canvas = canvasRef.current;
-    if (!el || !canvas) return;
-
-    const rect = el.getBoundingClientRect();
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    metricsRef.current = { w: rect.width, h: rect.height, dpr };
-
-    canvas.width = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
 
     const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }, []);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-  const tick = React.useCallback(() => {
-    const canvas = canvasRef.current;
-    const el = containerRef.current;
-    if (!canvas || !el) return;
+    const resize = () => {
+      const rect = container.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
 
-    const ctx = canvas.getContext('2d');
-    const { w, h } = metricsRef.current;
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(container);
 
-    const now = performance.now();
-    const dt = Math.min(0.033, (now - lastTRef.current) / 1000);
-    lastTRef.current = now;
+    // Partículas (pocas y distribuidas)
+    const COUNT = 18;
+    particlesRef.current = Array.from({ length: COUNT }).map((_, i) => ({
+      angle: (i / COUNT) * Math.PI * 2,
+      speed: rand(0.25, 0.45),
+      size: rand(1.2, 2.0),
+      alpha: rand(0.5, 0.9),
+    }));
 
-    ctx.clearRect(0, 0, w, h);
+    let last = performance.now();
 
-    const cx = w / 2;
-    const cy = h / 2;
+    const loop = (t) => {
+      const dt = Math.min(0.033, (t - last) / 1000);
+      last = t;
 
-    // Anillo elíptico que calza con botón (rounded-2xl)
-    const rx = Math.max(92, w * 0.52);
-    const ry = Math.max(28, h * 0.78);
+      // Limpiar a escala CSS (porque ya setTransform con dpr)
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
+      ctx.clearRect(0, 0, w, h);
 
-    const energy = hoverRef.current ? 1.0 : 0.55;
-    const glow = hoverRef.current ? 20 : 12;
-    const ringAlpha = hoverRef.current ? 0.24 : 0.14;
+      const cx = w / 2;
+      const cy = h / 2;
 
-    // Halo base del anillo
-    ctx.save();
-    ctx.globalAlpha = ringAlpha;
-    ctx.strokeStyle = 'rgba(16,185,129,1)'; // emerald-500
-    ctx.lineWidth = 1.15;
-    ctx.shadowColor = 'rgba(16,185,129,1)';
-    ctx.shadowBlur = glow;
-    ctx.beginPath();
-    for (let t = 0; t <= Math.PI * 2 + 0.001; t += 0.08) {
-      const x = cx + Math.cos(t) * rx;
-      const y = cy + Math.sin(t) * ry;
-      if (t === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.stroke();
-    ctx.restore();
+      // Radio del anillo: un poco más grande que el botón
+      const radius = Math.min(cx, cy) + 10;
 
-    // Partículas + estelas
-    const particles = particlesRef.current;
-    for (const p of particles) {
-      p.a += p.va * (0.9 + energy) * dt;
-      p.p += dt * (0.8 + energy);
+      const isHover = hoverRef.current;
+      const ringAlpha = isHover ? 0.28 : 0.18;
+      const ringBlur = isHover ? 22 : 14;
+      const particleBlur = isHover ? 18 : 10;
+      const speedBoost = isHover ? 1.6 : 1.0;
 
-      const twinkle = 0.55 + 0.45 * Math.sin(p.p * 3.2);
-
-      const rrX = rx + p.rj * (0.7 + energy * 0.6);
-      const rrY = ry + p.rj * (0.7 + energy * 0.6);
-
-      const x = cx + Math.cos(p.a) * rrX;
-      const y = cy + Math.sin(p.a) * rrY;
-
-      const tx = cx + Math.cos(p.a - 0.08) * rrX;
-      const ty = cy + Math.sin(p.a - 0.08) * rrY;
-
-      const alpha = p.o * twinkle * (hoverRef.current ? 1.0 : 0.75);
-
-      // Estela
+      // Anillo limpio (glow)
       ctx.save();
-      ctx.globalAlpha = alpha * 0.35;
-      ctx.strokeStyle = 'rgba(16,185,129,1)';
-      ctx.lineWidth = 1.2;
+      ctx.globalAlpha = ringAlpha;
+      ctx.strokeStyle = 'rgba(16,185,129,1)'; // emerald-500
+      ctx.lineWidth = 1.1;
       ctx.shadowColor = 'rgba(16,185,129,1)';
-      ctx.shadowBlur = glow * 0.75;
+      ctx.shadowBlur = ringBlur;
       ctx.beginPath();
-      ctx.moveTo(tx, ty);
-      ctx.lineTo(x, y);
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
 
-      // Punto
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = 'rgba(16,185,129,1)';
-      ctx.shadowColor = 'rgba(16,185,129,1)';
-      ctx.shadowBlur = glow;
-      ctx.beginPath();
-      ctx.arc(x, y, p.s, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+      // Partículas orbitando
+      for (const p of particlesRef.current) {
+        p.angle += p.speed * speedBoost * dt;
 
-    rafRef.current = requestAnimationFrame(tick);
-  }, []);
+        const x = cx + Math.cos(p.angle) * radius;
+        const y = cy + Math.sin(p.angle) * radius;
 
-  React.useEffect(() => {
-    initParticles();
-    resizeCanvas();
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = 'rgba(16,185,129,1)';
+        ctx.shadowColor = 'rgba(16,185,129,1)';
+        ctx.shadowBlur = particleBlur;
+        ctx.beginPath();
+        ctx.arc(x, y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
 
-    const ro = new ResizeObserver(() => resizeCanvas());
-    if (containerRef.current) ro.observe(containerRef.current);
+      rafRef.current = requestAnimationFrame(loop);
+    };
 
-    rafRef.current = requestAnimationFrame(tick);
+    rafRef.current = requestAnimationFrame(loop);
 
     return () => {
       ro.disconnect();
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [initParticles, resizeCanvas, tick]);
+  }, []);
 
   return (
     <div
@@ -172,16 +125,16 @@ const ParticleRingButton = ({ onClick, label = 'RESERVAR POR WHATSAPP' }) => {
       onMouseEnter={() => (hoverRef.current = true)}
       onMouseLeave={() => (hoverRef.current = false)}
     >
-      {/* Canvas por encima, sin bloquear clicks */}
+      {/* Canvas alineado exactamente al botón */}
       <canvas
         ref={canvasRef}
-        className="pointer-events-none absolute -inset-6 z-10"
+        className="pointer-events-none absolute inset-0 z-10"
         aria-hidden="true"
       />
 
       <button
         onClick={onClick}
-        className="relative z-20 group flex items-center gap-3 rounded-2xl bg-emerald-500 px-8 py-4 font-black text-slate-950 transition-all hover:bg-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+        className="relative z-20 group flex items-center gap-3 rounded-2xl bg-emerald-500 px-8 py-4 font-black text-slate-950 transition-all hover:bg-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.45)]"
       >
         <MessageCircle className="h-5 w-5 fill-slate-950" />
         {label}
@@ -318,7 +271,7 @@ const Hero = ({ handleScrollTo, handleWhatsAppClick }) => {
           </p>
 
           <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
-            {/* Botón con partículas orbitando */}
+            {/* Botón con partículas orbitando (versión corregida) */}
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <ParticleRingButton onClick={handleWhatsAppClick} />
             </motion.div>
