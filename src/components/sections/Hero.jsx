@@ -1,97 +1,351 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { GalleryHorizontal, Phone, Video } from 'lucide-react';
+import {
+  motion,
+  useMotionValue,
+  useSpring,
+  useTransform,
+} from 'framer-motion';
+import { MapPin, Camera, MessageCircle } from 'lucide-react';
 
-const Hero = ({ handleScrollTo, handleWhatsAppClick }) => {
+/**
+ * Botón con anillo de partículas orbitando alrededor (Canvas).
+ * - Ligero (solo Canvas)
+ * - Reactivo al hover (más velocidad + brillo)
+ * - Responde al tamaño real del botón (ResizeObserver)
+ */
+const ParticleRingButton = ({ onClick, label = 'RESERVAR POR WHATSAPP' }) => {
+  const containerRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
+
+  const rafRef = React.useRef(null);
+  const particlesRef = React.useRef([]);
+  const metricsRef = React.useRef({ w: 0, h: 0, dpr: 1 });
+
+  const hoverRef = React.useRef(false);
+  const lastTRef = React.useRef(performance.now());
+
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  const initParticles = React.useCallback(() => {
+    const count = 28; // densidad (sube a 40 si lo quieres más "brutal")
+    const particles = [];
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        a: rand(0, Math.PI * 2), // ángulo
+        va: rand(0.45, 0.95), // velocidad angular
+        rj: rand(-7, 7), // jitter radial
+        s: rand(1.2, 2.4), // tamaño
+        o: rand(0.35, 0.9), // opacidad
+        p: rand(0, 1), // fase twinkle
+      });
+    }
+    particlesRef.current = particles;
+  }, []);
+
+  const resizeCanvas = React.useCallback(() => {
+    const el = containerRef.current;
+    const canvas = canvasRef.current;
+    if (!el || !canvas) return;
+
+    const rect = el.getBoundingClientRect();
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    metricsRef.current = { w: rect.width, h: rect.height, dpr };
+
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }, []);
+
+  const tick = React.useCallback(() => {
+    const canvas = canvasRef.current;
+    const el = containerRef.current;
+    if (!canvas || !el) return;
+
+    const ctx = canvas.getContext('2d');
+    const { w, h } = metricsRef.current;
+
+    const now = performance.now();
+    const dt = Math.min(0.033, (now - lastTRef.current) / 1000);
+    lastTRef.current = now;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const cx = w / 2;
+    const cy = h / 2;
+
+    // Anillo elíptico que calza con botón (rounded-2xl)
+    const rx = Math.max(92, w * 0.52);
+    const ry = Math.max(28, h * 0.78);
+
+    const energy = hoverRef.current ? 1.0 : 0.55;
+    const glow = hoverRef.current ? 20 : 12;
+    const ringAlpha = hoverRef.current ? 0.24 : 0.14;
+
+    // Halo base del anillo
+    ctx.save();
+    ctx.globalAlpha = ringAlpha;
+    ctx.strokeStyle = 'rgba(16,185,129,1)'; // emerald-500
+    ctx.lineWidth = 1.15;
+    ctx.shadowColor = 'rgba(16,185,129,1)';
+    ctx.shadowBlur = glow;
+    ctx.beginPath();
+    for (let t = 0; t <= Math.PI * 2 + 0.001; t += 0.08) {
+      const x = cx + Math.cos(t) * rx;
+      const y = cy + Math.sin(t) * ry;
+      if (t === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+
+    // Partículas + estelas
+    const particles = particlesRef.current;
+    for (const p of particles) {
+      p.a += p.va * (0.9 + energy) * dt;
+      p.p += dt * (0.8 + energy);
+
+      const twinkle = 0.55 + 0.45 * Math.sin(p.p * 3.2);
+
+      const rrX = rx + p.rj * (0.7 + energy * 0.6);
+      const rrY = ry + p.rj * (0.7 + energy * 0.6);
+
+      const x = cx + Math.cos(p.a) * rrX;
+      const y = cy + Math.sin(p.a) * rrY;
+
+      const tx = cx + Math.cos(p.a - 0.08) * rrX;
+      const ty = cy + Math.sin(p.a - 0.08) * rrY;
+
+      const alpha = p.o * twinkle * (hoverRef.current ? 1.0 : 0.75);
+
+      // Estela
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.35;
+      ctx.strokeStyle = 'rgba(16,185,129,1)';
+      ctx.lineWidth = 1.2;
+      ctx.shadowColor = 'rgba(16,185,129,1)';
+      ctx.shadowBlur = glow * 0.75;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.restore();
+
+      // Punto
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = 'rgba(16,185,129,1)';
+      ctx.shadowColor = 'rgba(16,185,129,1)';
+      ctx.shadowBlur = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, p.s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  React.useEffect(() => {
+    initParticles();
+    resizeCanvas();
+
+    const ro = new ResizeObserver(() => resizeCanvas());
+    if (containerRef.current) ro.observe(containerRef.current);
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      ro.disconnect();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [initParticles, resizeCanvas, tick]);
+
   return (
-    <section id="hero" className="relative h-screen flex items-center justify-center text-center overflow-hidden bg-slate-900">
-      
-      {/* IMAGEN DE FONDO CON REVELADO SUAVE */}
-      <motion.img
-        initial={{ scale: 1.2, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 1.5, ease: "easeOut" }}
-        className="absolute inset-0 w-full h-full object-cover object-[center_40%] z-0"
-        alt="Vista panorámica Volcán Osorno"
-        src="https://horizons-cdn.hostinger.com/721336c3-418c-43de-8d0a-bd68ea993e8d/34cb0b4e9fd5d91351022c75f00439d9.jpg"
+    <div
+      ref={containerRef}
+      className="relative inline-flex"
+      onMouseEnter={() => (hoverRef.current = true)}
+      onMouseLeave={() => (hoverRef.current = false)}
+    >
+      {/* Canvas por encima, sin bloquear clicks */}
+      <canvas
+        ref={canvasRef}
+        className="pointer-events-none absolute -inset-6 z-10"
+        aria-hidden="true"
       />
 
-      {/* OVERLAY DINÁMICO (Gradiente para mejorar lectura) */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-900/70 via-slate-900/40 to-slate-900/80 z-0"></div>
+      <button
+        onClick={onClick}
+        className="relative z-20 group flex items-center gap-3 rounded-2xl bg-emerald-500 px-8 py-4 font-black text-slate-950 transition-all hover:bg-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+      >
+        <MessageCircle className="h-5 w-5 fill-slate-950" />
+        {label}
+      </button>
+    </div>
+  );
+};
 
-      {/* CONTENEDOR PRINCIPAL */}
-      <div className="relative z-10 p-4 md:p-6 flex flex-col items-center w-full max-w-5xl">
-        
-        {/* LOGO CON EFECTO FLOTANTE */}
-        <motion.img
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, type: 'spring', stiffness: 100 }}
-          src="https://kdiebhgdnhbcyomezsob.supabase.co/storage/v1/object/public/MEDIA%20CLIENTES/REFUGIO%20SCHOLER/logo%20primero/ChatGPT%20Image%2026%20nov%202025,%2007_53_34%20p.m..png"
-          alt="Logo Refugio Scholer"
-          className="h-48 md:h-80 w-auto mx-auto mb-4 drop-shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+const Hero = ({ handleScrollTo, handleWhatsAppClick }) => {
+  // Mouse / física para parallax suave del contenido
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  const centerX = useMotionValue(0);
+  const centerY = useMotionValue(0);
+
+  const spring = { stiffness: 80, damping: 20, mass: 0.6 };
+  const sx = useSpring(mouseX, spring);
+  const sy = useSpring(mouseY, spring);
+
+  const rafMoveRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const setCenter = () => {
+      centerX.set(window.innerWidth / 2);
+      centerY.set(window.innerHeight / 2);
+    };
+    setCenter();
+    window.addEventListener('resize', setCenter);
+    return () => window.removeEventListener('resize', setCenter);
+  }, [centerX, centerY]);
+
+  const handleMouseMove = (e) => {
+    if (rafMoveRef.current) return;
+    rafMoveRef.current = requestAnimationFrame(() => {
+      const dx = e.clientX - centerX.get();
+      const dy = e.clientY - centerY.get();
+      mouseX.set(dx);
+      mouseY.set(dy);
+      rafMoveRef.current = null;
+    });
+  };
+
+  // Distancia para atenuar fuerza (más cerca del centro, más efecto)
+  const distance = useTransform([sx, sy], ([x, y]) => Math.sqrt(x * x + y * y));
+  const force = useTransform(distance, [0, 650], [1, 0]);
+
+  // Contenido: masa grande
+  const contentX = useTransform([sx, force], ([x, f]) => x * f * 0.03);
+  const contentY = useTransform([sy, force], ([y, f]) => y * f * 0.03);
+
+  // Glow del hero
+  const glowOpacity = useTransform(force, [0, 1], [0, 0.25]);
+
+  return (
+    <section
+      onMouseMove={handleMouseMove}
+      className="relative min-h-[100svh] w-full overflow-hidden bg-slate-950"
+    >
+      {/* CAPA DE FONDO */}
+      <div className="absolute inset-0 z-0">
+        <img
+          src="https://horizons-cdn.hostinger.com/721336c3-418c-43de-8d0a-bd68ea993e8d/d0a5dc6dd8e2452585e9bb979b8767d8.jpg"
+          className="h-full w-full object-cover opacity-40 grayscale-[20%]"
+          alt="Refugio Scholer Frutillar"
+          loading="eager"
         />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/70 via-transparent to-slate-950" />
+      </div>
 
-        {/* TÍTULO CON REVELADO DE LETRAS */}
-        <motion.h1
-          initial={{ opacity: 0, filter: "blur(10px)" }}
-          animate={{ opacity: 1, filter: "blur(0px)" }}
-          transition={{ delay: 0.3, duration: 1 }}
-          className="text-3xl md:text-5xl font-black text-white leading-tight mb-6 tracking-tight px-4"
-          style={{ textShadow: '0px 4px 20px rgba(0, 0, 0, 0.6)' }}
-        >
-          Refugio Scholer <br/>
-          <span className="text-xl md:text-2xl font-light text-blue-300 tracking-[0.2em] uppercase">
-            Frutillar Bajo — Chile
-          </span>
-        </motion.h1>
+      {/* NOISE/Grain sutil cinematográfico */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-10 opacity-[0.06] mix-blend-overlay"
+        style={{
+          backgroundImage:
+            "url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%22160%22%3E%3Cfilter id=%22n%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.8%22 numOctaves=%224%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22160%22 height=%22160%22 filter=%22url(%23n)%22 opacity=%220.35%22/%3E%3C/svg%3E')",
+        }}
+      />
 
-        {/* TARJETA GLASSMORPHISM PARA EL TEXTO */}
+      {/* Campo luminoso físico suave */}
+      <motion.div
+        style={{ opacity: glowOpacity }}
+        className="pointer-events-none absolute inset-0 z-10"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.22),transparent_65%)]" />
+      </motion.div>
+
+      {/* CONTENIDO */}
+      <motion.div
+        style={{ x: contentX, y: contentY }}
+        className="relative z-20 flex min-h-[100svh] flex-col items-center justify-center px-6 text-center overflow-visible [contain:layout_paint]"
+      >
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.8 }}
-          className="backdrop-blur-md bg-white/10 border border-white/20 rounded-3xl p-6 md:p-10 shadow-2xl max-w-4xl flex flex-col items-center gap-6"
+          transition={{ duration: 1 }}
+          className="w-full max-w-5xl overflow-visible"
         >
-          <p className="text-white/90 leading-relaxed text-lg md:text-xl font-medium">
-            Disfruta tu estadía a 3 cuadras del Lago Llanquihue. Comodidad familiar y precios accesibles durante todo el año en una ubicación segura.
+          <div className="mb-8 flex items-center justify-center gap-2">
+            <MapPin className="text-emerald-500 h-4 w-4" />
+            <span className="text-[10px] font-black tracking-[0.5em] text-white/60 uppercase">
+              Frutillar Bajo — Chile
+            </span>
+          </div>
+
+          {/* TITULO (fix R + tipografía estable) */}
+          <h1 className="mb-8 pr-10 text-[11vw] sm:text-7xl md:text-8xl lg:text-9xl font-black leading-[0.9] tracking-tight text-white overflow-visible">
+            REFUGIO
+            <br />
+            <span
+              style={{
+                filter: 'drop-shadow(0 0 #0000)',
+                WebkitTextStroke: '0.01px transparent',
+              }}
+              className="relative bg-gradient-to-r from-white via-slate-200 to-emerald-500 bg-clip-text text-transparent italic inline-block py-2 px-[0.15em] leading-[0.95] overflow-visible"
+            >
+              {/* Light sweep sutil profesional */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-0 w-full opacity-30 mix-blend-overlay
+                           bg-gradient-to-r from-transparent via-white/40 to-transparent
+                           translate-x-[-120%] animate-[sweep_10s_linear_infinite]"
+              />
+              SCHOLER
+            </span>
+          </h1>
+
+          <p className="mx-auto mb-12 max-w-2xl text-base sm:text-lg md:text-xl font-light leading-relaxed text-slate-300">
+            Disfruta tu estadía en{' '}
+            <span className="text-emerald-400 font-bold">Refugio Scholer</span>, a
+            solo 3 cuadras del Lago Llanquihue. Comodidad familiar y precios
+            accesibles durante todo el año.
           </p>
 
-          {/* GRUPO DE BOTONES */}
-          <div className="flex flex-col md:flex-row justify-center items-center gap-4 w-full">
-            <Button
-              onClick={handleWhatsAppClick}
-              className="bg-[#25D366] hover:bg-[#1EBE5A] text-white font-bold text-lg px-8 py-6 rounded-full shadow-[0_0_20px_rgba(37,211,102,0.4)] hover:-translate-y-1 transition-all duration-300 w-full md:w-auto flex items-center justify-center gap-2"
-            >
-              <Phone className="h-5 w-5" />
-              <span>Reservar por WhatsApp</span>
-            </Button>
+          <div className="flex flex-col items-center justify-center gap-5 sm:flex-row">
+            {/* Botón con partículas orbitando */}
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <ParticleRingButton onClick={handleWhatsAppClick} />
+            </motion.div>
 
-            <div className="flex gap-3 w-full md:w-auto">
-              <Button
-                onClick={() => handleScrollTo('galeria')}
-                variant="outline"
-                className="flex-1 bg-white/10 border-white/40 text-white hover:bg-white hover:text-black font-bold py-6 rounded-full backdrop-blur-sm transition-all duration-300 flex items-center justify-center gap-2"
-              >
-                <GalleryHorizontal className="h-5 w-5" />
-                Fotos
-              </Button>
-              <Button
-                onClick={() => handleScrollTo('videos')}
-                variant="outline"
-                className="flex-1 bg-white/10 border-white/40 text-white hover:bg-white hover:text-black font-bold py-6 rounded-full backdrop-blur-sm transition-all duration-300 flex items-center justify-center gap-2"
-              >
-                <Video className="h-5 w-5" />
-                Videos
-              </Button>
-            </div>
+            <button
+              onClick={() => handleScrollTo('galeria')}
+              className="group flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-8 py-4 font-bold text-white backdrop-blur-xl transition-all hover:bg-white/10"
+            >
+              <Camera className="h-5 w-5 text-white/60 group-hover:text-white transition-colors" />
+              Ver Fotos
+            </button>
           </div>
         </motion.div>
+      </motion.div>
+
+      <div className="absolute bottom-12 left-12 hidden lg:block font-mono text-[9px] text-emerald-500/40">
+        <p>// STATUS: OPERATIONAL</p>
+        <p>// COORD: 41.13° S | 73.02° W</p>
       </div>
 
-      {/* DECORACIÓN EXTRA: LUZ RADIAL QUE SIGUE AL MOUSE (Opcional, estética pura) */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(56,189,248,0.1),transparent_50%)]"></div>
+      {/* Keyframes del sweep */}
+      <style>{`
+        @keyframes sweep {
+          0% { transform: translateX(-120%); }
+          100% { transform: translateX(120%); }
+        }
+      `}</style>
     </section>
   );
 };
