@@ -4,11 +4,14 @@ import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/components/ui/use-toast';
 import Lightbox from '@/components/ui/Lightbox';
 
+// IMPORTACIÓN DEL NUEVO COMPONENTE DE TELEMETRÍA (BRUTAL)
+import AmbientStatus from '@/components/ambientStatus'; 
+
 // IMPORTACIONES DE SECCIONES
 import Header from '@/components/sections/Header';
 import Hero from '@/components/sections/Hero';
 import Cabanas from '@/components/sections/Cabanas';
-import Features from '@/components/sections/Feactures'; // <--- Nueva sección conectada
+import Features from '@/components/sections/Feactures'; 
 import Tarifas from '@/components/sections/Tarifas';
 import Reservas from '@/components/sections/Reservas';
 import Galeria from '@/components/sections/Galeria';
@@ -35,7 +38,7 @@ const LandingPage = () => {
 
   const handleFeatureClick = (feature) => {
     if (feature === 'Google Maps') {
-      window.open('https://maps.app.goo.gl/uXpXN1QjK3V7p5Pj9', '_blank'); // Actualizado a link real si existiera
+      window.open('https://maps.app.goo.gl/xxx', '_blank'); // Link de Maps real
       return;
     }
     toast({
@@ -62,33 +65,58 @@ const LandingPage = () => {
         <meta property="og:image" content="https://horizons-cdn.hostinger.com/721336c3-418c-43de-8d0a-bd68ea993e8d/d0a5dc6dd8e2452585e9bb979b8767d8.jpg" />
       </Helmet>
 
-      {/* FONDO: Cambiado de bg-[#f3f3f3] a slate-950 para que el diseño PRO resalte */}
-      <div className="min-h-screen bg-slate-950 text-white font-sans relative">
+      {/* CONTENEDOR MAESTRO: 
+          bg-slate-950 (Negro profundo para resaltar los efectos de luz y cristal)
+      */}
+      <div className="min-h-screen bg-slate-950 text-white font-sans relative overflow-x-hidden">
+        
+        {/* LAYER 1: COMPONENTES FIXEDS (Flotan sobre el contenido)
+            Inyectamos AmbientStatus aquí para que no afecte el layout flow.
+        */}
+        <AmbientStatus /> 
         <Toaster />
         
+        {/* LAYER 2: HEADER (Navegación) */}
         <Header handleScrollTo={handleScrollTo} handleWhatsAppClick={handleWhatsAppClick} />
         
+        {/* LAYER 3: CONTENIDO PRINCIPAL (Scrollable) */}
         <main>
+          {/* Hero Section: Refugio OS Interface */}
           <Hero handleScrollTo={handleScrollTo} handleWhatsAppClick={handleWhatsAppClick} />
           
           <div id="habitaciones">
              <Cabanas handleWhatsAppClick={handleWhatsAppClick} />
           </div>
 
-          {/* LA SECCIÓN BRUTAL: Spotlight Effect */}
+          {/* Sección de Características con efecto Spotlight */}
           <Features /> 
           
-          <Tarifas handleWhatsAppClick={handleWhatsAppClick} />
-          <Reservas />
-          <Galeria handleScrollTo={handleScrollTo} openLightbox={openLightbox} />
+          <div id="tarifas">
+            <Tarifas handleWhatsAppClick={handleWhatsAppClick} />
+          </div>
+          
+          <div id="reservas">
+            <Reservas />
+          </div>
+
+          <div id="galeria">
+            <Galeria handleScrollTo={handleScrollTo} openLightbox={openLightbox} />
+          </div>
+
           <Videos handleScrollTo={handleScrollTo} />
-          <Ubicacion handleFeatureClick={handleFeatureClick} />
+          
+          <div id="ubicacion">
+            <Ubicacion handleFeatureClick={handleFeatureClick} />
+          </div>
+
           <Faq handleWhatsAppClick={handleWhatsAppClick} />
           <Contacto handleWhatsAppClick={handleWhatsAppClick} />
         </main>
 
+        {/* FOOTER */}
         <Footer />
 
+        {/* MODAL DE IMÁGENES */}
         {selectedImage && (
           <Lightbox src={selectedImage.src} alt={selectedImage.alt} onClose={closeLightbox} />
         )}
